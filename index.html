@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#131A26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Copier">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Trade Copier Remote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --slate:#131A26; --deck:#1A2333; --raise:#222D40; --edge:#2E3A50;
+  --ink:#E8ECF2; --dim:#8E9AAE; --live:#FF7A1A; --up:#2FCB7A; --down:#F0524A;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--slate);color:var(--ink);font:16px/1.45 "Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body{padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 64px);min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums;font-family:"Barlow Semi Condensed","Barlow",sans-serif}
+.up{color:var(--up)} .down{color:var(--down)} .dim{color:var(--dim)}
+:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- gate screens ---------- */
+.gate{max-width:420px;margin:0 auto;padding:48px 22px}
+.gate h1{font:700 30px/1.15 "Barlow Semi Condensed",sans-serif;margin:0 0 6px}
+.gate p{color:var(--dim);margin:0 0 26px}
+.field{display:grid;gap:6px;margin-bottom:16px}
+.field label{font-size:14px;font-weight:600}
+.field small{color:var(--dim);font-size:13px}
+input,select{background:var(--deck);border:1px solid var(--edge);border-radius:8px;padding:12px 13px;width:100%}
+.btn{border:0;border-radius:8px;padding:12px 18px;font-weight:600;cursor:pointer;background:var(--raise);border:1px solid var(--edge)}
+.btn.go{background:var(--live);color:#1b0d02;border-color:var(--live)}
+.btn.buy{background:#17402B;border-color:var(--up);color:#CFF7E1}
+.btn.sell{background:#4A1D1B;border-color:var(--down);color:#FFD9D6}
+.btn.quiet{background:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.err{color:var(--down);min-height:1.4em;margin:8px 0 0}
+
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:5;background:var(--slate);border-bottom:1px solid var(--edge);padding:12px 18px;display:flex;align-items:center;gap:12px}
+.top select{width:auto;max-width:52vw;padding:8px 10px;font-weight:600;background:var(--deck)}
+.beat{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--dim);margin-left:auto;white-space:nowrap}
+.beat i{width:9px;height:9px;border-radius:50%;background:var(--down)}
+.beat.ok i{background:var(--up)}
+.beat.ok.copy i{background:var(--live);box-shadow:0 0 0 4px rgba(255,122,26,.18)}
+
+/* ---------- layout ---------- */
+main{max-width:1100px;margin:0 auto;padding:18px}
+.view{display:none}
+.view.on{display:block}
+.cols{display:grid;gap:18px}
+@media (min-width:880px){.cols{grid-template-columns:1.25fr 1fr}}
+.block{background:var(--deck);border:1px solid var(--edge);border-radius:var(--r);padding:16px}
+.block + .block{margin-top:18px}
+.block h2{font:700 18px/1.2 "Barlow Semi Condensed",sans-serif;margin:0 0 12px}
+.banner{border-left:3px solid var(--live);background:#2A2116;padding:10px 13px;border-radius:6px;margin-bottom:16px;color:#F6D3B4;font-size:14.5px}
+
+/* day pnl */
+.pnl{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.pnl .big{font-size:46px;font-weight:700;line-height:1}
+.state{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
+.chip{border:1px solid var(--edge);border-radius:999px;padding:4px 11px;font-size:13.5px;color:var(--dim)}
+.chip.hot{border-color:var(--live);color:var(--live)}
+.chip.good{border-color:var(--up);color:var(--up)}
+.chip.bad{border-color:var(--down);color:var(--down)}
+
+/* rows */
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 0;border-top:1px solid var(--edge);align-items:center}
+.row:first-of-type{border-top:0}
+.row .name{font-weight:600}
+.row .sub{grid-column:1/2;color:var(--dim);font-size:14px}
+.row .val{text-align:right;font-weight:600}
+.row .act{grid-column:2/3;justify-self:end}
+.small{padding:6px 11px;font-size:14px;border-radius:7px}
+
+/* actions */
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions .btn{padding:14px}
+.kill{grid-column:1/-1;position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--down);background:#3A1715;color:#FFE1DE;padding:18px;font:700 19px "Barlow Semi Condensed",sans-serif;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none}
+.kill .fill{position:absolute;inset:0;background:var(--down);transform-origin:left;transform:scaleX(0)}
+.kill span{position:relative}
+.kill small{display:block;font:500 13px "Barlow",sans-serif;opacity:.8;position:relative}
+
+/* toggles */
+.sw{appearance:none;width:46px;height:26px;border-radius:13px;background:var(--edge);position:relative;cursor:pointer;flex:none;border:0;padding:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.sw[aria-checked="true"]{background:var(--live)}
+.sw[aria-checked="true"]::after{left:23px}
+
+/* trade */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.seg{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;background:transparent;padding:10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--live);font-weight:600}
+.bigbtns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.bigbtns .btn{padding:18px;font:700 20px "Barlow Semi Condensed",sans-serif}
+
+/* log */
+.log{font-size:13.5px;line-height:1.5;color:#C7CFDB;max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word}
+
+/* bottom tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--deck);border-top:1px solid var(--edge);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs button{flex:1;background:none;border:0;padding:11px 4px 12px;color:var(--dim);font-size:13.5px;font-weight:600;cursor:pointer}
+nav.tabs button[aria-current="page"]{color:var(--ink);box-shadow:inset 0 2px 0 var(--live)}
+
+/* sheet + toast */
+.scrim{position:fixed;inset:0;background:rgba(5,8,14,.6);display:none;z-index:20;align-items:flex-end;justify-content:center}
+.scrim.on{display:flex}
+.sheet{background:var(--deck);border:1px solid var(--edge);border-radius:14px 14px 0 0;width:100%;max-width:520px;padding:22px 20px calc(22px + env(safe-area-inset-bottom,0px))}
+.sheet h3{margin:0 0 6px;font:700 21px "Barlow Semi Condensed",sans-serif}
+.sheet p{margin:0 0 18px;color:var(--dim)}
+.toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:30;display:grid;gap:8px;width:min(92vw,460px)}
+.toast{background:var(--raise);border:1px solid var(--edge);border-left:3px solid var(--dim);border-radius:8px;padding:10px 13px;font-size:14.5px}
+.toast.done{border-left-color:var(--up)} .toast.failed,.toast.expired{border-left-color:var(--down)}
+.empty{color:var(--dim);padding:8px 0}
+</style>
+</head>
+<body>
+
+<!-- ============ setup ============ -->
+<section class="gate" id="setup" hidden>
+  <h1>Connect your copier</h1>
+  <p>Enter your Supabase project details. You only do this once on each device.</p>
+  <div class="field"><label for="cfgUrl">Project URL</label><input id="cfgUrl" placeholder="https://xxxx.supabase.co" autocomplete="off"><small>Supabase → Project Settings → API</small></div>
+  <div class="field"><label for="cfgKey">anon public key</label><input id="cfgKey" placeholder="eyJhbGciOi…" autocomplete="off"></div>
+  <button class="btn go" id="cfgSave">Save and continue</button>
+  <p class="err" id="cfgErr"></p>
+</section>
+
+<!-- ============ login ============ -->
+<section class="gate" id="login" hidden>
+  <h1>Sign in</h1>
+  <p>Use the same email and password you connected the copier with.</p>
+  <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
+  <div class="field"><label for="pass">Password</label><input id="pass" type="password" autocomplete="current-password"></div>
+  <button class="btn go" id="signIn">Sign in</button>
+  <button class="btn quiet" id="resetCfg">Change project</button>
+  <p class="err" id="loginErr"></p>
+</section>
+
+<!-- ============ app ============ -->
+<div id="app" hidden>
+  <header class="top">
+    <select id="engineSel" aria-label="Copier"></select>
+    <div class="beat" id="beat"><i></i><span id="beatTxt">Waiting…</span></div>
+  </header>
+
+  <main>
+    <div class="banner" id="remoteOff" hidden>Remote control is off in this copier, so the app can watch but not act. Turn it on in Trade Copier → Cloud Control.</div>
+
+    <!-- OVERVIEW -->
+    <section class="view on" id="v-overview">
+      <div class="cols">
+        <div>
+          <div class="block">
+            <div class="pnl"><span class="big num" id="dayPnl">—</span><span class="dim">today across all accounts</span></div>
+            <div class="state" id="stateChips"></div>
+            <div class="actions">
+              <button class="btn go" id="startStop">Start copying</button>
+              <button class="btn" data-cmd="close_followers" data-perm="flatten" data-confirm="Close every follower account? Masters stay in their trades.">Close followers</button>
+              <button class="kill" id="kill" data-perm="flatten" aria-label="Press and hold to flatten all accounts">
+                <div class="fill" id="killFill"></div>
+                <span>Hold to flatten all</span>
+                <small>Stops copying, closes every master and follower</small>
+              </button>
+              <button class="btn" data-cmd="reset_locks" data-perm="flatten">Reset daily locks</button>
+              <button class="btn" data-cmd="refresh">Refresh copier</button>
+            </div>
+          </div>
+        </div>
+        <div class="block">
+          <h2>Accounts</h2>
+          <div id="accounts"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- POSITIONS -->
+    <section class="view" id="v-positions">
+      <div class="block"><h2>Open positions</h2><div id="positions"></div></div>
+      <div class="block"><h2>Working orders</h2><div id="orders"></div></div>
+    </section>
+
+    <!-- GROUPS -->
+    <section class="view" id="v-groups">
+      <div id="groups"></div>
+    </section>
+
+    <!-- TRADE -->
+    <section class="view" id="v-trade">
+      <div class="block" style="max-width:560px">
+        <h2>Trade ticket</h2>
+        <div class="field"><label>Send to</label>
+          <div class="seg" id="tKindSeg"><button type="button" data-v="Group" aria-pressed="true">Group</button><button type="button" data-v="Account" aria-pressed="false">Account</button></div>
+        </div>
+        <div class="field"><label for="tTarget">Target</label><select id="tTarget"></select></div>
+        <div class="grid2">
+          <div class="field"><label for="tInst">Instrument</label><input id="tInst" placeholder="MNQ"></div>
+          <div class="field"><label for="tQty">Quantity</label><input id="tQty" type="number" min="1" value="1" inputmode="numeric"></div>
+        </div>
+        <div class="field"><label>Order</label>
+          <div class="seg" id="tTypeSeg"><button type="button" data-v="market" aria-pressed="true">Market</button><button type="button" data-v="limit" aria-pressed="false">Limit</button><button type="button" data-v="stop" aria-pressed="false">Stop</button></div>
+        </div>
+        <div class="field" id="tPriceWrap" hidden><label for="tPrice">Price</label><input id="tPrice" type="number" step="any" inputmode="decimal"></div>
+        <div id="tBracketWrap">
+          <div class="field"><label>Stop loss and target in</label>
+            <div class="seg" id="tUnitSeg"><button type="button" data-v="Points" aria-pressed="true">Points</button><button type="button" data-v="Ticks" aria-pressed="false">Ticks</button></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label for="tSl">Stop loss</label><input id="tSl" type="number" min="0" step="any" value="0" inputmode="decimal"></div>
+            <div class="field"><label for="tTp">Take profit</label><input id="tTp" type="number" min="0" step="any" value="0" inputmode="decimal"></div>
+          </div>
+        </div>
+        <div class="bigbtns">
+          <button class="btn buy" id="tBuy" data-perm="trade">Buy</button>
+          <button class="btn sell" id="tSell" data-perm="trade">Sell</button>
+        </div>
+        <button class="btn" id="tClose" data-perm="trade" style="width:100%;margin-top:12px">Close this position</button>
+      </div>
+    </section>
+
+    <!-- TIMED + HEDGE -->
+    <section class="view" id="v-timed">
+      <div class="block">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <h2 style="margin:0">Timed entries</h2>
+          <span class="dim" style="margin-left:auto">Scheduler</span>
+          <button class="sw" id="armSw" role="switch" aria-checked="false" aria-label="Scheduler armed" data-perm="timed"></button>
+        </div>
+        <div id="timed"></div>
+        <button class="btn go" id="fireAll" data-perm="timed" style="width:100%;margin-top:10px">Fire all enabled cards now</button>
+      </div>
+      <div class="block"><h2>Hedge pairs</h2><div id="hedges"></div></div>
+    </section>
+
+    <!-- LOG -->
+    <section class="view" id="v-log">
+      <div class="block"><h2>Copier log</h2><div class="log num" id="log"></div></div>
+      <div class="block">
+        <h2>This device</h2>
+        <button class="btn" id="signOut">Sign out</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="Sections">
+    <button data-v="overview" aria-current="page">Overview</button>
+    <button data-v="positions">Positions</button>
+    <button data-v="groups">Groups</button>
+    <button data-v="trade">Trade</button>
+    <button data-v="timed">Timed</button>
+    <button data-v="log">Log</button>
+  </nav>
+</div>
+
+<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
+  <h3 id="sheetT">Confirm</h3><p id="sheetP"></p>
+  <div class="grid2"><button class="btn" id="sheetNo">Cancel</button><button class="btn go" id="sheetYes">Confirm</button></div>
+</div></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const $ = id => document.getElementById(id);
+const money = v => (v < 0 ? '−$' : '+$') + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const cls = v => v > 0 ? 'up' : v < 0 ? 'down' : 'dim';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let sb, engines = [], engineId = null, snap = null, snapAt = 0, channel = null;
+const pending = new Map();   // command id -> toast el
+
+/* ---------- boot ---------- */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+const cfg = () => ({ url: localStorage.getItem('tc_url') || '', key: localStorage.getItem('tc_key') || '' });
+
+function show(id){ ['setup','login','app'].forEach(x => $(x).hidden = x !== id); }
+
+async function boot(){
+  const c = cfg();
+  if (!c.url || !c.key) { show('setup'); return; }
+  sb = createClient(c.url, c.key, { auth: { persistSession: true, autoRefreshToken: true } });
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { show('login'); return; }
+  show('app');
+  await loadEngines();
+}
+
+$('cfgSave').onclick = () => {
+  const url = $('cfgUrl').value.trim().replace(/\/+$/,''), key = $('cfgKey').value.trim();
+  if (!/^https:\/\/.+/.test(url)) { $('cfgErr').textContent = 'The Project URL starts with https:// and ends in supabase.co.'; return; }
+  if (key.length < 40) { $('cfgErr').textContent = 'That key looks too short. Copy the full anon public key.'; return; }
+  localStorage.setItem('tc_url', url); localStorage.setItem('tc_key', key); boot();
+};
+$('resetCfg').onclick = () => { localStorage.removeItem('tc_url'); localStorage.removeItem('tc_key'); show('setup'); };
+$('signIn').onclick = async () => {
+  $('loginErr').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pass').value });
+  if (error) { $('loginErr').textContent = error.message; return; }
+  boot();
+};
+$('signOut').onclick = async () => { await sb.auth.signOut(); show('login'); };
+
+/* ---------- engines + live snapshot ---------- */
+async function loadEngines(){
+  const { data, error } = await sb.from('engines').select('id,name,kind,version,last_seen').order('created_at');
+  engines = data || [];
+  const sel = $('engineSel');
+  sel.innerHTML = engines.length ? engines.map(e => `<option value="${e.id}">${esc(e.name || 'Copier')}</option>`).join('') : '<option>No copier connected yet</option>';
+  if (!engines.length) { $('beatTxt').textContent = 'Connect a copier first'; return; }
+  engineId = localStorage.getItem('tc_engine');
+  if (!engines.some(e => e.id === engineId)) engineId = engines[0].id;
+  sel.value = engineId;
+  watch();
+}
+$('engineSel').onchange = e => { engineId = e.target.value; localStorage.setItem('tc_engine', engineId); watch(); };
+
+async function fetchSnap(){
+  if (!engineId) return;
+  const { data } = await sb.from('snapshots').select('data,updated_at').eq('engine_id', engineId).maybeSingle();
+  if (data) { snap = data.data; snapAt = Date.parse(data.updated_at); render(); }
+}
+
+function watch(){
+  if (channel) sb.removeChannel(channel);
+  snap = null; render();
+  fetchSnap();
+  channel = sb.channel('eng-' + engineId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'snapshots', filter: 'engine_id=eq.' + engineId },
+        p => { if (p.new && p.new.data) { snap = p.new.data; snapAt = Date.parse(p.new.updated_at); render(); } })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'commands', filter: 'engine_id=eq.' + engineId },
+        p => cmdUpdate(p.new))
+    .subscribe();
+}
+setInterval(() => { if (Date.now() - snapAt > 5000) fetchSnap(); beat(); }, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchSnap(); });
+
+function beat(){
+  const age = snap ? (Date.now() - snapAt) / 1000 : 999, el = $('beat');
+  const live = age < 8;
+  el.className = 'beat' + (live ? ' ok' : '') + (live && snap && snap.copying ? ' copy' : '');
+  $('beatTxt').textContent = !snap ? 'Waiting for copier' : live ? (snap.copying ? 'Copying · live' : 'Live') : `Last seen ${age < 120 ? Math.round(age) + 's' : Math.round(age/60) + 'm'} ago`;
+}
+
+/* ---------- commands ---------- */
+function allowed(perm){
+  const r = snap && snap.remote; if (!r || !r.enabled) return false;
+  return !perm || r[perm] === true;
+}
+function toast(text, kind){
+  const t = document.createElement('div'); t.className = 'toast ' + (kind || ''); t.textContent = text;
+  $('toasts').appendChild(t); setTimeout(() => t.remove(), kind ? 5000 : 15000); return t;
+}
+async function send(type, payload = {}, label){
+  if (!engineId) return;
+  const t = toast((label || type.replace(/_/g,' ')) + '… sending');
+  const { data, error } = await sb.from('commands').insert({ engine_id: engineId, type, payload }).select('id').single();
+  if (error) { t.className = 'toast failed'; t.textContent = 'Not sent: ' + error.message; return; }
+  pending.set(data.id, { t, label: label || type });
+  setTimeout(async () => {     // fallback if realtime is slow
+    if (!pending.has(data.id)) return;
+    const { data: row } = await sb.from('commands').select('*').eq('id', data.id).single();
+    if (row && row.status !== 'pending') cmdUpdate(row);
+    else if (pending.has(data.id)) { const p = pending.get(data.id); p.t.textContent = p.label + ' — copier hasn\u2019t picked it up. Is it online?'; p.t.className = 'toast failed'; }
+  }, 8000);
+}
+function cmdUpdate(row){
+  const p = pending.get(row.id); if (!p || row.status === 'pending') return;
+  pending.delete(row.id);
+  p.t.className = 'toast ' + row.status;
+  p.t.textContent = (row.status === 'done' ? '✓ ' : '✕ ') + (row.result || row.status);
+  setTimeout(() => p.t.remove(), 5000);
+  setTimeout(fetchSnap, 600);
+}
+function confirmThen(title, text, fn){
+  $('sheetT').textContent = title; $('sheetP').textContent = text; $('scrim').classList.add('on');
+  $('sheetYes').onclick = () => { $('scrim').classList.remove('on'); fn(); };
+  $('sheetNo').onclick = () => $('scrim').classList.remove('on');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-cmd]'); if (!b || b.disabled) return;
+  const go = () => send(b.dataset.cmd, b.dataset.payload ? JSON.parse(b.dataset.payload) : {}, b.textContent.trim());
+  b.dataset.confirm ? confirmThen(b.textContent.trim(), b.dataset.confirm, go) : go();
+});
+
+/* hold-to-flatten */
+(() => {
+  const k = $('kill'), f = $('killFill'); let start = 0, raf = 0;
+  const HOLD = 1400;
+  const tick = () => { const p = Math.min(1, (Date.now() - start) / HOLD); f.style.transform = `scaleX(${p})`;
+    if (p >= 1) { stop(); if (navigator.vibrate) navigator.vibrate(60); send('flatten_all', {}, 'Flatten all'); } else raf = requestAnimationFrame(tick); };
+  const begin = e => { if (k.disabled) return; e.preventDefault(); start = Date.now(); raf = requestAnimationFrame(tick); };
+  const stop = () => { cancelAnimationFrame(raf); f.style.transform = 'scaleX(0)'; };
+  k.addEventListener('pointerdown', begin); ['pointerup','pointerleave','pointercancel'].forEach(ev => k.addEventListener(ev, stop));
+  k.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') confirmThen('Flatten all', 'Stop copying and close every master and follower?', () => send('flatten_all', {}, 'Flatten all')); });
+})();
+
+$('startStop').onclick = () => {
+  if (!snap) return;
+  snap.copying ? confirmThen('Stop copying', 'Followers stop receiving new trades. Open positions stay as they are.', () => send('stop', {}, 'Stop copying'))
+               : send('start', {}, 'Start copying');
+};
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav.tabs button').forEach(x => x.removeAttribute('aria-current'));
+  b.setAttribute('aria-current', 'page');
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+  window.scrollTo(0, 0);
+});
+
+/* ---------- render ---------- */
+function render(){
+  beat();
+  const s = snap;
+  $('remoteOff').hidden = !s || (s.remote && s.remote.enabled);
+  document.querySelectorAll('[data-perm]').forEach(b => b.disabled = !allowed(b.dataset.perm));
+  $('startStop').disabled = !allowed('start_stop');
+  if (!s) { $('dayPnl').textContent = '—'; $('accounts').innerHTML = '<p class="empty">Waiting for the copier to send its first update.</p>'; return; }
+
+  const total = (s.accounts || []).reduce((a, x) => a + (x.total || 0), 0);
+  $('dayPnl').textContent = money(total); $('dayPnl').className = 'big num ' + cls(total);
+  $('startStop').textContent = s.copying ? 'Stop copying' : 'Start copying';
+  $('startStop').className = 'btn' + (s.copying ? '' : ' go');
+
+  $('stateChips').innerHTML = [
+    s.copying ? '<span class="chip hot">Copying on</span>' : '<span class="chip">Copying off</span>',
+    s.scheduler_armed ? '<span class="chip hot">Scheduler armed</span>' : '<span class="chip">Scheduler off</span>',
+    s.license && s.license.valid ? '<span class="chip good">License valid</span>' : '<span class="chip bad">License issue</span>',
+    `<span class="chip">v${esc(s.engine && s.engine.version)}</span>`
+  ].join('');
+
+  // accounts
+  const accts = s.accounts || [];
+  $('accounts').innerHTML = accts.length ? accts.map(a => {
+    const pos = (a.positions || []).map(p => `${p.side === 'LONG' ? 'Long' : 'Short'} ${p.qty} ${esc(p.instrument)}`).join(', ') || 'Flat';
+    const canClose = (a.positions || []).length && allowed('flatten');
+    return `<div class="row"><span class="name">${esc(a.name)}${a.locked ? ' <span class="chip bad">Locked</span>' : ''}</span>
+      <span class="val num ${cls(a.total)}">${money(a.total || 0)}</span>
+      <span class="sub">${esc(a.role)} · ${pos}</span>
+      ${canClose ? `<button class="btn small act" data-cmd="close_account" data-payload='${esc(JSON.stringify({account:a.name}))}' data-confirm="Close every position and order on ${esc(a.name)}?">Close</button>` : ''}</div>`;
+  }).join('') : '<p class="empty">No accounts in your groups yet. Add them in the copier.</p>';
+
+  // positions + orders
+  const pos = accts.flatMap(a => (a.positions || []).map(p => ({...p, account: a.name})));
+  $('positions').innerHTML = pos.length ? pos.map(p => `<div class="row"><span class="name">${esc(p.account)}</span>
+      <span class="val num ${p.side === 'LONG' ? 'up' : 'down'}">${p.side === 'LONG' ? 'Long' : 'Short'} ${p.qty}</span>
+      <span class="sub">${esc(p.instrument)} @ <span class="num">${p.avg}</span></span></div>`).join('') : '<p class="empty">No open positions.</p>';
+  const ords = s.orders || [];
+  $('orders').innerHTML = ords.length ? ords.map(o => `<div class="row"><span class="name">${esc(o.account)}</span>
+      <span class="val num ${o.side === 'BUY' ? 'up' : 'down'}">${o.side === 'BUY' ? 'Buy' : 'Sell'} ${o.qty}</span>
+      <span class="sub">${esc(o.type)} ${esc(o.instrument)} @ <span class="num">${o.price}</span> · ${esc(o.tag)}</span></div>`).join('') : '<p class="empty">No working orders.</p>';
+
+  // groups
+  const gs = s.groups || [];
+  $('groups').innerHTML = gs.length ? gs.map(g => `<div class="block"><h2 style="border-left:4px solid ${esc(g.color || '#4A90E2')};padding-left:10px">${esc(g.name)}${g.enabled ? '' : ' <span class="chip">Off</span>'}</h2>
+      <div class="row"><span class="name">Master</span><span class="val">${esc(g.master || '—')}</span></div>
+      ${(g.followers || []).map(f => `<div class="row"><span class="name">${esc(f.account || '—')}</span>
+        <button class="sw act" role="switch" aria-checked="${f.following}" aria-label="Following ${esc(f.account)}" ${s.copying && allowed('followers') ? '' : 'disabled'}
+          data-cmd="set_following" data-payload='${esc(JSON.stringify({account: f.account, on: !f.following}))}'></button>
+        <span class="sub">×${f.multiplier}${f.inverse ? ' · inverse' : ''} · ${s.copying ? (f.following ? 'Following' : 'Paused') : 'Copier off'}</span></div>`).join('')}
+    </div>`).join('') : '<div class="block"><p class="empty">No groups yet.</p></div>';
+
+  // trade target list
+  const kind = segVal('tKindSeg'), tSel = $('tTarget'), keep = tSel.value;
+  const names = kind === 'Group' ? gs.map(g => g.name) : accts.map(a => a.name);
+  tSel.innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('');
+  if (names.includes(keep)) tSel.value = keep;
+  if (!$('tInst').value && s.trade) $('tInst').value = s.trade.instrument || '';
+
+  // timed + hedges
+  $('armSw').setAttribute('aria-checked', s.scheduler_armed ? 'true' : 'false');
+  const tm = s.timed || [];
+  $('timed').innerHTML = tm.length ? tm.map(t => `<div class="row"><span class="name">${esc(t.name)}${t.hedge ? ' <span class="chip hot">Hedge</span>' : ''}${t.enabled ? '' : ' <span class="chip">Off</span>'}</span>
+      <button class="btn small act" ${allowed('timed') ? '' : 'disabled'} data-cmd="fire_timed" data-payload='${esc(JSON.stringify({name: t.name}))}' data-confirm="Fire ${esc(t.name)} now? This places real orders.">Fire</button>
+      <span class="sub"><span class="num">${esc(t.time)}</span> ${esc((t.tz || '').replace(' Standard Time',''))} · ${esc(t.side)} ${esc(t.instrument)} → ${esc(t.target)}</span></div>`).join('') : '<p class="empty">No timed cards.</p>';
+  const hs = s.hedges || [];
+  $('hedges').innerHTML = hs.length ? hs.map(h => `<div class="row"><span class="name">${esc(h.name)}</span>
+      <span class="val dim">${h.mode === 'Market' ? 'Market' : 'At ' + h.price}</span>
+      <span class="sub">${esc(h.a)} buys · ${esc(h.b)} sells${h.blocked ? ' · <span class="down">' + esc(h.blocked) + '</span>' : ''}</span>
+      <span class="act" style="display:flex;gap:8px">
+        <button class="btn small" ${allowed('timed') && !h.blocked ? '' : 'disabled'} data-cmd="open_hedge" data-payload='${esc(JSON.stringify({name: h.name}))}' data-confirm="Open hedge ${esc(h.name)}? This places real orders.">Open</button>
+        <button class="btn small" ${allowed('timed') ? '' : 'disabled'} data-cmd="flatten_hedge" data-payload='${esc(JSON.stringify({name: h.name}))}' data-confirm="Flatten both sides of ${esc(h.name)}?">Flatten</button>
+      </span></div>`).join('') : '<p class="empty">No hedge pairs.</p>';
+
+  // log
+  const lg = $('log'), atBottom = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 20;
+  lg.textContent = (s.log || []).join('\n');
+  if (atBottom) lg.scrollTop = lg.scrollHeight;
+}
+
+/* ---------- trade ticket ---------- */
+function segVal(id){ const b = $(id).querySelector('[aria-pressed="true"]'); return b ? b.dataset.v : ''; }
+['tKindSeg','tTypeSeg','tUnitSeg'].forEach(id => $(id).addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  if (id === 'tTypeSeg') { const m = b.dataset.v === 'market'; $('tPriceWrap').hidden = m; $('tBracketWrap').hidden = !m; }
+  render();
+}));
+function ticket(side){
+  const p = { target_kind: segVal('tKindSeg'), target: $('tTarget').value, instrument: $('tInst').value.trim(), qty: +$('tQty').value || 1,
+              side, order_type: segVal('tTypeSeg'), price: +$('tPrice').value || 0, unit: segVal('tUnitSeg'), sl: +$('tSl').value || 0, tp: +$('tTp').value || 0 };
+  if (!p.target || !p.instrument) { toast('Pick a target and an instrument first.', 'failed'); return; }
+  if (p.order_type !== 'market' && !p.price) { toast('Enter a price for the ' + p.order_type + ' order.', 'failed'); return; }
+  const what = `${side === 'buy' ? 'Buy' : 'Sell'} ${p.qty} ${p.instrument} ${p.order_type === 'market' ? 'at market' : p.order_type + ' @ ' + p.price}`;
+  confirmThen(what, `Sends to ${p.target_kind.toLowerCase()} ${p.target}. This places real orders.`, () => send('trade', p, what));
+}
+$('tBuy').onclick = () => ticket('buy');
+$('tSell').onclick = () => ticket('sell');
+$('tClose').onclick = () => {
+  const p = { target_kind: segVal('tKindSeg'), target: $('tTarget').value, instrument: $('tInst').value.trim() };
+  confirmThen('Close position', `Close ${p.instrument} on ${p.target}?`, () => send('close_position', p, 'Close ' + p.instrument));
+};
+$('armSw').onclick = () => send('arm_scheduler', { on: $('armSw').getAttribute('aria-checked') !== 'true' }, 'Scheduler');
+$('fireAll').onclick = () => confirmThen('Fire all cards', 'Fire every enabled timed card now? This places real orders.', () => send('fire_timed', { all: true }, 'Fire all'));
+
+boot();
+</script>
+</body>
+</html>
